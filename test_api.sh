@@ -62,21 +62,54 @@ else
     echo -e "${RED}✗ Get current user failed${NC}\n"
 fi
 
-# Test 4: Image Analysis (if OpenAI key is configured)
-echo -e "${YELLOW}Test 4: Image Analysis${NC}"
-IMAGE_RESPONSE=$(curl -s -X POST http://localhost:8080/api/getImageContents \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "imageUrl": "https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Ftse1.mm.bing.net%2Fth%2Fid%2FOIP.fzc9xGSJXEbvwV6BVozOcwHaD4%3Fpid%3DApi&f=1&ipt=997bd9e9a338d2e152896c360abcc73e63f1f50adf8d08883526b1545b269565&ipo=images",
-    "prompt": "Is there a yello car in this image?"
-  }')
+# Test 4: Image Analysis - Multiple Images and Prompts
+echo -e "${YELLOW}Test 4: Image Analysis - Multiple Images and Prompts${NC}"
 
-echo "Response: $IMAGE_RESPONSE"
-if [[ $IMAGE_RESPONSE == *"result"* ]]; then
-    echo -e "${GREEN}✓ Image analysis passed${NC}\n"
+# Define test cases as an associative array
+declare -a IMAGE_URLS=(
+    "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
+    "https://images.unsplash.com/photo-1495521821757-a1efb6729352?w=400"
+    "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Good_Food_Display_-_NCI_Visuals_Online.jpg/1200px-Good_Food_Display_-_NCI_Visuals_Online.jpg"
+)
+
+declare -a PROMPTS=(
+    "Is there nature or outdoor scenery in this image?"
+    "Is there a person or people in this image?"
+    "Is there food or edible items in this image?"
+)
+
+IMAGE_ANALYSIS_PASS=0
+IMAGE_ANALYSIS_TOTAL=${#IMAGE_URLS[@]}
+
+for i in "${!IMAGE_URLS[@]}"; do
+    echo -e "${YELLOW}  Test 4.$((i+1)): Image URL $((i+1)) - Prompt: \"${PROMPTS[$i]}\"${NC}"
+    
+    IMAGE_RESPONSE=$(curl -s -X POST http://localhost:8080/api/getImageContents \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $TOKEN" \
+      -d "{
+        \"imageUrl\": \"${IMAGE_URLS[$i]}\",
+        \"prompt\": \"${PROMPTS[$i]}\"
+      }")
+    
+    echo "  Response: $IMAGE_RESPONSE"
+    
+    if [[ $IMAGE_RESPONSE == *"result"* ]]; then
+        # Extract the result value
+        RESULT=$(echo $IMAGE_RESPONSE | grep -o '"result":[^,}]*' | sed 's/"result"://')
+        echo -e "  ${GREEN}✓ Image analysis passed (result: $RESULT)${NC}"
+        ((IMAGE_ANALYSIS_PASS++))
+    else
+        echo -e "  ${RED}✗ Image analysis failed${NC}"
+    fi
+    echo ""
+done
+
+echo -e "${YELLOW}Image Analysis Summary: $IMAGE_ANALYSIS_PASS/$IMAGE_ANALYSIS_TOTAL tests passed${NC}"
+if [[ $IMAGE_ANALYSIS_PASS -eq $IMAGE_ANALYSIS_TOTAL ]]; then
+    echo -e "${GREEN}✓ All image analysis tests passed${NC}\n"
 else
-    echo -e "${RED}✗ Image analysis failed${NC}"
+    echo -e "${RED}✗ Some image analysis tests failed${NC}"
     echo -e "${YELLOW}Note: Make sure OPENAI_API_KEY is configured in .env${NC}\n"
 fi
 
