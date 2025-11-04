@@ -2,6 +2,19 @@
 
 A Fiber-based REST API with authentication (email/password and Google OAuth) and OpenAI Vision API integration for image analysis.
 
+## Project Status
+
+✅ **Completed Features:**
+- User authentication (email/password + JWT)
+- Google OAuth integration
+- MongoDB database integration
+- OpenAI Vision API integration (updated to gpt-4o-mini)
+- Image analysis with simplified boolean responses
+- Comprehensive API testing suite
+- Docker containerization support
+
+🚧 **Current Stage:** Production-ready backend API with full authentication and image analysis capabilities
+
 ## Features
 
 - **Authentication**
@@ -10,9 +23,9 @@ A Fiber-based REST API with authentication (email/password and Google OAuth) and
   - JWT-based authentication
   
 - **Image Analysis**
-  - OpenAI Vision API integration
+  - OpenAI Vision API integration (using gpt-4o-mini)
   - Analyze images with custom prompts
-  - Returns true/false responses with explanations
+  - Returns simple true/false boolean responses
 
 ## Prerequisites
 
@@ -150,8 +163,7 @@ OR with base64 image:
 
 Response:
 {
-  "result": true,
-  "answer": "Yes, there is a table visible in the image. It appears to be a wooden dining table..."
+  "result": true
 }
 ```
 
@@ -177,12 +189,12 @@ treasurehuntAI/
 
 ## OpenAI Vision API Usage
 
-The `/api/getImageContents` endpoint uses OpenAI's GPT-4 Vision model to analyze images. It:
+The `/api/getImageContents` endpoint uses OpenAI's gpt-4o-mini model to analyze images. It:
 
 1. Accepts either an image URL or base64-encoded image
 2. Takes a natural language prompt (e.g., "Is there a table in the image?")
 3. Enhances the prompt to request a yes/no answer first
-4. Returns both a boolean `result` (true/false) and the full `answer` from OpenAI
+4. Returns a simple boolean `result` (true/false) for easy programmatic use
 
 ## Environment Variables
 
@@ -217,6 +229,21 @@ air
 
 ## Testing
 
+### Automated Testing
+Run the included test script to verify all endpoints:
+
+```bash
+./test_api.sh
+```
+
+This script tests:
+- Health check endpoint
+- User signup and authentication
+- Protected route access
+- Image analysis functionality
+- Unauthorized access rejection
+
+### Manual Testing
 Example curl requests:
 
 ```bash
