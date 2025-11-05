@@ -16,7 +16,7 @@ import (
 var (
 	// Item pools for different difficulty levels
 	EasyItems = []string{
-		"car", "pinecone", "stone", "bicycle", "streetlight", "house",
+		"car", "pinecone", "stone", "bicycle", "street light", "house",
 		"stick", "acorn", "trashcan", "bush", "fence", "crossroad", "football goal",
 	}
 
@@ -85,36 +85,51 @@ func (r *ChallengeRepository) CreateChallenge(ctx context.Context, userID primit
 	mediumCount := config[1]
 	hardCount := config[2]
 
-	// Randomly select items from each pool
+	// Randomly select items from each pool without duplicates
 	items := make([]models.ChallengeItem, 0, totalItems)
 	rand.Seed(time.Now().UnixNano())
 
-	// Select easy items
-	for i := 0; i < easyCount && i < len(EasyItems); i++ {
-		randomIndex := rand.Intn(len(EasyItems))
+	// Helper function to select unique items from a pool
+	selectUniqueItems := func(pool []string, count int) []string {
+		if count > len(pool) {
+			count = len(pool)
+		}
+		// Create a copy of the pool and shuffle it
+		poolCopy := make([]string, len(pool))
+		copy(poolCopy, pool)
+		rand.Shuffle(len(poolCopy), func(i, j int) {
+			poolCopy[i], poolCopy[j] = poolCopy[j], poolCopy[i]
+		})
+		// Take the first 'count' items
+		return poolCopy[:count]
+	}
+
+	// Select easy items (no duplicates)
+	selectedEasy := selectUniqueItems(EasyItems, easyCount)
+	for _, itemName := range selectedEasy {
 		items = append(items, models.ChallengeItem{
 			ItemID: len(items) + 1,
-			Name:   EasyItems[randomIndex],
+			Name:   itemName,
 			Found:  false,
 		})
 	}
 
-	// Select medium items
-	for i := 0; i < mediumCount && i < len(MediumItems); i++ {
-		randomIndex := rand.Intn(len(MediumItems))
+	// Select medium items (no duplicates)
+	selectedMedium := selectUniqueItems(MediumItems, mediumCount)
+	for _, itemName := range selectedMedium {
 		items = append(items, models.ChallengeItem{
 			ItemID: len(items) + 1,
-			Name:   MediumItems[randomIndex],
+			Name:   itemName,
 			Found:  false,
 		})
 	}
 
-	// Select hard items
-	for i := 0; i < hardCount && i < len(HardItems); i++ {
-		randomIndex := rand.Intn(len(HardItems))
+	// Select hard items (no duplicates)
+	selectedHard := selectUniqueItems(HardItems, hardCount)
+	for _, itemName := range selectedHard {
 		items = append(items, models.ChallengeItem{
 			ItemID: len(items) + 1,
-			Name:   HardItems[randomIndex],
+			Name:   itemName,
 			Found:  false,
 		})
 	}
