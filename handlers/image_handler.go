@@ -10,13 +10,13 @@ import (
 )
 
 type ImageHandler struct {
-	openaiClient *openai.Client
+	OpenAIClient *openai.Client
 }
 
 func NewImageHandler() *ImageHandler {
 	client := openai.NewClient(config.AppConfig.OpenAIAPIKey)
 	return &ImageHandler{
-		openaiClient: client,
+		OpenAIClient: client,
 	}
 }
 
@@ -81,7 +81,7 @@ func (h *ImageHandler) GetImageContents(c *fiber.Ctx) error {
 	// Modify prompt to get a yes/no answer
 	enhancedPrompt := req.Prompt + " Answer with 'yes' or 'no' first, then provide a brief explanation."
 
-	resp, err := h.openaiClient.CreateChatCompletion(
+	resp, err := h.OpenAIClient.CreateChatCompletion(
 		context.Background(),
 		openai.ChatCompletionRequest{
 			Model: "gpt-4o-mini",

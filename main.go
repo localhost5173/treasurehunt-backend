@@ -6,6 +6,7 @@ import (
 	"treasureHunt/database"
 	"treasureHunt/handlers"
 	"treasureHunt/middleware"
+	"treasureHunt/repository"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -44,6 +45,10 @@ func main() {
 	authHandler := handlers.NewAuthHandler()
 	imageHandler := handlers.NewImageHandler()
 
+	// Initialize challenge repository and handler
+	challengeRepo := repository.NewChallengeRepository(database.DB)
+	challengeHandler := handlers.NewChallengeHandler(challengeRepo, imageHandler.OpenAIClient)
+
 	// Public routes
 	api := app.Group("/api")
 
@@ -58,6 +63,13 @@ func main() {
 	protected := api.Group("", middleware.AuthRequired())
 	protected.Get("/auth/me", authHandler.GetMe)
 	protected.Post("/getImageContents", imageHandler.GetImageContents)
+
+	// Challenge routes
+	challenges := protected.Group("/challenges")
+	challenges.Post("/start", challengeHandler.StartChallenge)
+	challenges.Get("", challengeHandler.GetUserChallenges)
+	challenges.Get("/:challengeId", challengeHandler.GetChallenge)
+	challenges.Post("/:challengeId/:itemId", challengeHandler.VerifyItem)
 
 	// Health check
 	app.Get("/health", func(c *fiber.Ctx) error {
