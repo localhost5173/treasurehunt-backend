@@ -45,9 +45,19 @@ func main() {
 	authHandler := handlers.NewAuthHandler()
 	imageHandler := handlers.NewImageHandler()
 
-	// Initialize challenge repository and handler
+	// Initialize repositories
 	challengeRepo := repository.NewChallengeRepository(database.DB)
+	friendRepo := repository.NewFriendRepository(database.DB)
+	battleRepo := repository.NewBattleRepository(database.DB)
+	notificationRepo := repository.NewNotificationRepository(database.DB)
+
+	// Initialize handlers
 	challengeHandler := handlers.NewChallengeHandler(challengeRepo, imageHandler.OpenAIClient)
+	friendHandler := handlers.NewFriendHandler(friendRepo, notificationRepo)
+	battleHandler := handlers.NewBattleHandler(battleRepo, friendRepo, notificationRepo, challengeRepo)
+
+	// Set battle repo in challenge handler for syncing progress
+	challengeHandler.SetBattleRepo(battleRepo)
 
 	// Public routes
 	api := app.Group("/api")
@@ -70,6 +80,33 @@ func main() {
 	challenges.Get("", challengeHandler.GetUserChallenges)
 	challenges.Get("/:challengeId", challengeHandler.GetChallenge)
 	challenges.Post("/:challengeId/:itemId", challengeHandler.VerifyItem)
+
+	// Friend routes
+	friends := protected.Group("/friends")
+	friends.Post("/request", friendHandler.SendFriendRequest)
+	friends.Get("/requests", friendHandler.GetFriendRequests)
+	friends.Post("/requests/:requestId/accept", friendHandler.AcceptFriendRequest)
+	friends.Post("/requests/:requestId/reject", friendHandler.RejectFriendRequest)
+	friends.Get("", friendHandler.GetFriends)
+	friends.Post("/online", friendHandler.UpdateOnlineStatus)
+	friends.Get("/search", friendHandler.SearchUserByEmail)
+
+	// Notification routes
+	notifications := protected.Group("/notifications")
+	notifications.Get("", friendHandler.GetNotifications)
+	notifications.Post("/:notificationId/read", friendHandler.MarkNotificationRead)
+	notifications.Post("/read-all", friendHandler.MarkAllNotificationsRead)
+	notifications.Get("/unread-count", friendHandler.GetUnreadCount)
+
+	// Battle routes
+	battles := protected.Group("/battles")
+	battles.Post("", battleHandler.CreateBattle)
+	battles.Get("", battleHandler.GetUserBattles)
+	battles.Get("/active", battleHandler.GetActiveBattles)
+	battles.Get("/:battleId", battleHandler.GetBattle)
+	battles.Post("/:battleId/accept", battleHandler.AcceptBattle)
+	battles.Post("/:battleId/decline", battleHandler.DeclineBattle)
+	battles.Post("/:battleId/join", battleHandler.JoinBattle)
 
 	// Health check
 	app.Get("/health", func(c *fiber.Ctx) error {

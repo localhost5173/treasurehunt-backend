@@ -13,6 +13,8 @@ type User struct {
 	Name         string             `bson:"name" json:"name"`
 	GoogleID     string             `bson:"google_id,omitempty" json:"googleId,omitempty"`
 	ProfileImage string             `bson:"profile_image,omitempty" json:"profileImage,omitempty"`
+	IsOnline     bool               `bson:"isOnline" json:"isOnline"`
+	LastActive   time.Time          `bson:"lastActive" json:"lastActive"`
 	CreatedAt    time.Time          `bson:"created_at" json:"createdAt"`
 	UpdatedAt    time.Time          `bson:"updated_at" json:"updatedAt"`
 }

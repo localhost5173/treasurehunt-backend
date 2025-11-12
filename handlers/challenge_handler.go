@@ -14,14 +14,20 @@ import (
 
 type ChallengeHandler struct {
 	challengeRepo *repository.ChallengeRepository
+	battleRepo    *repository.BattleRepository
 	OpenAIClient  *openai.Client
 }
 
 func NewChallengeHandler(challengeRepo *repository.ChallengeRepository, openaiClient *openai.Client) *ChallengeHandler {
 	return &ChallengeHandler{
 		challengeRepo: challengeRepo,
+		battleRepo:    nil, // Will be set later if needed
 		OpenAIClient:  openaiClient,
 	}
+}
+
+func (h *ChallengeHandler) SetBattleRepo(battleRepo *repository.BattleRepository) {
+	h.battleRepo = battleRepo
 }
 
 type StartChallengeRequest struct {
@@ -235,6 +241,11 @@ func (h *ChallengeHandler) VerifyItem(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 		}
 
+		// Update battle progress if this challenge is part of a battle
+		if h.battleRepo != nil {
+			h.syncBattleProgress(userID, challengeID, updatedChallenge)
+		}
+
 		return c.JSON(fiber.Map{
 			"found":     true,
 			"message":   fmt.Sprintf("Great! You found the %s!", item.Name),
@@ -246,4 +257,33 @@ func (h *ChallengeHandler) VerifyItem(c *fiber.Ctx) error {
 		"found":   false,
 		"message": fmt.Sprintf("No %s detected in the image. Try again!", item.Name),
 	})
+}
+
+// syncBattleProgress updates battle progress when a challenge item is found
+func (h *ChallengeHandler) syncBattleProgress(userID, challengeID primitive.ObjectID, challenge *models.Challenge) {
+	if h.battleRepo == nil {
+		return
+	}
+
+	// Find if this challenge is part of a battle
+	battles, err := h.battleRepo.GetActiveBattles(userID)
+	if err != nil {
+		return
+	}
+
+	for _, battleWithUsers := range battles {
+		// Check if any participant's challenge matches
+		for _, participant := range battleWithUsers.Battle.Participants {
+			if participant.UserID == userID && participant.ChallengeID == challengeID {
+				// Update battle progress
+				h.battleRepo.UpdateBattleProgress(
+					battleWithUsers.Battle.ID,
+					userID,
+					challenge.CompletedItems,
+					challenge.IsCompleted,
+				)
+				return
+			}
+		}
+	}
 }

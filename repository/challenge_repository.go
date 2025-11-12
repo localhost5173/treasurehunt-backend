@@ -42,6 +42,11 @@ func NewChallengeRepository(db *mongo.Database) *ChallengeRepository {
 
 // CreateChallenge creates a new challenge with random items based on difficulty
 func (r *ChallengeRepository) CreateChallenge(ctx context.Context, userID primitive.ObjectID, difficulty models.Difficulty, totalItems int) (*models.Challenge, error) {
+	return r.CreateChallengeWithBattle(ctx, userID, difficulty, totalItems, nil)
+}
+
+// CreateChallengeWithBattle creates a new challenge with optional battleId
+func (r *ChallengeRepository) CreateChallengeWithBattle(ctx context.Context, userID primitive.ObjectID, difficulty models.Difficulty, totalItems int, battleID *primitive.ObjectID) (*models.Challenge, error) {
 	if totalItems <= 0 || totalItems > 50 {
 		return nil, errors.New("total items must be between 1 and 50")
 	}
@@ -146,6 +151,7 @@ func (r *ChallengeRepository) CreateChallenge(ctx context.Context, userID primit
 
 	challenge := &models.Challenge{
 		UserID:         userID,
+		BattleID:       battleID,
 		Difficulty:     difficulty,
 		TotalItems:     len(items),
 		Items:          items,
@@ -162,7 +168,42 @@ func (r *ChallengeRepository) CreateChallenge(ctx context.Context, userID primit
 
 	challenge.ID = result.InsertedID.(primitive.ObjectID)
 	return challenge, nil
-} // GetChallenge retrieves a challenge by ID
+}
+
+// CreateChallengeWithItems creates a challenge using specific items (for battles)
+func (r *ChallengeRepository) CreateChallengeWithItems(ctx context.Context, userID primitive.ObjectID, difficulty models.Difficulty, items []models.ChallengeItem, battleID *primitive.ObjectID) (*models.Challenge, error) {
+	// Create a copy of items with Found set to false for this user
+	userItems := make([]models.ChallengeItem, len(items))
+	for i, item := range items {
+		userItems[i] = models.ChallengeItem{
+			ItemID: item.ItemID,
+			Name:   item.Name,
+			Found:  false,
+		}
+	}
+
+	challenge := &models.Challenge{
+		UserID:         userID,
+		BattleID:       battleID,
+		Difficulty:     difficulty,
+		TotalItems:     len(userItems),
+		Items:          userItems,
+		CompletedItems: 0,
+		IsCompleted:    false,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	}
+
+	result, err := r.collection.InsertOne(ctx, challenge)
+	if err != nil {
+		return nil, err
+	}
+
+	challenge.ID = result.InsertedID.(primitive.ObjectID)
+	return challenge, nil
+}
+
+// GetChallenge retrieves a challenge by ID
 func (r *ChallengeRepository) GetChallenge(ctx context.Context, challengeID primitive.ObjectID) (*models.Challenge, error) {
 	var challenge models.Challenge
 	err := r.collection.FindOne(ctx, bson.M{"_id": challengeID}).Decode(&challenge)
