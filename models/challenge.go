@@ -22,14 +22,15 @@ type ChallengeItem struct {
 }
 
 type Challenge struct {
-	ID             primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	UserID         primitive.ObjectID `json:"userId" bson:"userId"`
-	Difficulty     Difficulty         `json:"difficulty" bson:"difficulty"`
-	TotalItems     int                `json:"totalItems" bson:"totalItems"`
-	Items          []ChallengeItem    `json:"items" bson:"items"`
-	CompletedItems int                `json:"completedItems" bson:"completedItems"`
-	IsCompleted    bool               `json:"isCompleted" bson:"isCompleted"`
-	CreatedAt      time.Time          `json:"createdAt" bson:"createdAt"`
-	UpdatedAt      time.Time          `json:"updatedAt" bson:"updatedAt"`
-	CompletedAt    time.Time          `json:"completedAt,omitempty" bson:"completedAt,omitempty"`
+	ID             primitive.ObjectID  `json:"id" bson:"_id,omitempty"`
+	UserID         primitive.ObjectID  `json:"userId" bson:"userId"`
+	BattleID       *primitive.ObjectID `json:"battleId,omitempty" bson:"battleId,omitempty"`
+	Difficulty     Difficulty          `json:"difficulty" bson:"difficulty"`
+	TotalItems     int                 `json:"totalItems" bson:"totalItems"`
+	Items          []ChallengeItem     `json:"items" bson:"items"`
+	CompletedItems int                 `json:"completedItems" bson:"completedItems"`
+	IsCompleted    bool                `json:"isCompleted" bson:"isCompleted"`
+	CreatedAt      time.Time           `json:"createdAt" bson:"createdAt"`
+	UpdatedAt      time.Time           `json:"updatedAt" bson:"updatedAt"`
+	CompletedAt    time.Time           `json:"completedAt,omitempty" bson:"completedAt,omitempty"`
 }
