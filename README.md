@@ -21,6 +21,7 @@ A Fiber-based REST API with authentication (email/password and Google OAuth) and
   - Email/Password signup and login
   - Google OAuth integration
   - JWT-based authentication
+  - Email whitelist for controlled access (optional)
   
 - **Image Analysis**
   - OpenAI Vision API integration (using gpt-4o-mini)
@@ -45,6 +46,8 @@ A Fiber-based REST API with authentication (email/password and Google OAuth) and
    - Update the `.env` file with your credentials
    - Required: `JWT_SECRET`, `OPENAI_API_KEY`
    - Optional: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+   - Optional: `EMAIL_WHITELIST` - Comma-separated list of allowed emails for signup (leave empty to allow all)
+     - Example: `EMAIL_WHITELIST=user1@example.com,user2@example.com`
 
 3. **Start MongoDB**:
    ```bash
