@@ -58,6 +58,13 @@ func (h *AuthHandler) Signup(c *fiber.Ctx) error {
 		})
 	}
 
+	// Check if email is allowed (whitelist check)
+	if !config.IsEmailAllowed(req.Email) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "This email is not authorized to sign up",
+		})
+	}
+
 	// Check if user already exists
 	existingUser, _ := h.userRepo.FindByEmail(req.Email)
 	if existingUser != nil {
@@ -197,6 +204,13 @@ func (h *AuthHandler) GoogleCallback(c *fiber.Ctx) error {
 	// Find or create user
 	user, err := h.userRepo.FindByGoogleID(googleUser.ID)
 	if err != nil {
+		// Check if email is allowed (whitelist check)
+		if !config.IsEmailAllowed(googleUser.Email) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "This email is not authorized to sign up",
+			})
+		}
+
 		// User doesn't exist, create new one
 		user = &models.User{
 			Email:        googleUser.Email,

@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -19,6 +20,7 @@ type Config struct {
 	GoogleRedirectURL  string
 	FrontendURL        string
 	OpenAIAPIKey       string
+	EmailWhitelist     []string
 }
 
 var AppConfig *Config
@@ -41,6 +43,7 @@ func LoadConfig() {
 		GoogleRedirectURL:  getEnv("GOOGLE_REDIRECT_URL", "http://localhost:8080/api/auth/google/callback"),
 		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:5173"),
 		OpenAIAPIKey:       getEnv("OPENAI_API_KEY", ""),
+		EmailWhitelist:     getEmailWhitelist(),
 	}
 }
 
@@ -49,4 +52,38 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func getEmailWhitelist() []string {
+	whitelist := os.Getenv("EMAIL_WHITELIST")
+	if whitelist == "" {
+		return []string{} // Empty whitelist means all emails are allowed
+	}
+
+	// Split by comma and trim whitespace
+	emails := strings.Split(whitelist, ",")
+	result := make([]string, 0, len(emails))
+	for _, email := range emails {
+		trimmed := strings.TrimSpace(email)
+		if trimmed != "" {
+			result = append(result, strings.ToLower(trimmed))
+		}
+	}
+	return result
+}
+
+func IsEmailAllowed(email string) bool {
+	// If whitelist is empty, all emails are allowed
+	if len(AppConfig.EmailWhitelist) == 0 {
+		return true
+	}
+
+	// Check if email is in whitelist (case-insensitive)
+	emailLower := strings.ToLower(strings.TrimSpace(email))
+	for _, allowed := range AppConfig.EmailWhitelist {
+		if emailLower == allowed {
+			return true
+		}
+	}
+	return false
 }
