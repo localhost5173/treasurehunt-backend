@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.24.6-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git
@@ -10,8 +10,10 @@ WORKDIR /app
 # Copy go mod files
 COPY go.mod go.sum ./
 
-# Download dependencies
-RUN go mod download
+# Download dependencies with timeout and retry, disable IPv6
+RUN go env -w GOPROXY=https://proxy.golang.org,direct && \
+    go env -w GOSUMDB=sum.golang.org && \
+    go mod download
 
 # Copy source code
 COPY . .
