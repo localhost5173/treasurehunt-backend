@@ -24,7 +24,7 @@ func NewNotificationRepository(db *mongo.Database) *NotificationRepository {
 }
 
 // CreateNotification creates a new notification
-func (r *NotificationRepository) CreateNotification(userID, fromUser, referenceID primitive.ObjectID, notifType models.NotificationType, message string) error {
+func (r *NotificationRepository) CreateNotification(userID, fromUser, referenceID primitive.ObjectID, notifType models.NotificationType, message string) (*models.NotificationWithUser, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -40,7 +40,24 @@ func (r *NotificationRepository) CreateNotification(userID, fromUser, referenceI
 	}
 
 	_, err := r.notificationCollection.InsertOne(ctx, notification)
-	return err
+	if err != nil {
+		return nil, err
+	}
+
+	// Fetch the from user details
+	var fromUserData models.User
+	err = r.userCollection.FindOne(ctx, bson.M{"_id": fromUser}).Decode(&fromUserData)
+	if err != nil {
+		// Return notification even if we can't fetch user data
+		return &models.NotificationWithUser{
+			Notification: notification,
+		}, nil
+	}
+
+	return &models.NotificationWithUser{
+		Notification: notification,
+		FromUserData: fromUserData,
+	}, nil
 }
 
 // GetUserNotifications gets all notifications for a user

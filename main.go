@@ -11,6 +11,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/websocket/v2"
 )
 
 func main() {
@@ -41,6 +42,10 @@ func main() {
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
 	}))
 
+	// Initialize WebSocket hub
+	wsHub := handlers.NewHub()
+	go wsHub.Run() // Start hub in a goroutine
+
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler()
 	imageHandler := handlers.NewImageHandler()
@@ -53,8 +58,9 @@ func main() {
 
 	// Initialize handlers
 	challengeHandler := handlers.NewChallengeHandler(challengeRepo, imageHandler.OpenAIClient)
-	friendHandler := handlers.NewFriendHandler(friendRepo, notificationRepo)
-	battleHandler := handlers.NewBattleHandler(battleRepo, friendRepo, notificationRepo, challengeRepo)
+	friendHandler := handlers.NewFriendHandler(friendRepo, notificationRepo, wsHub)
+	battleHandler := handlers.NewBattleHandler(battleRepo, friendRepo, notificationRepo, challengeRepo, wsHub)
+	wsHandler := handlers.NewWebSocketHandler(wsHub)
 
 	// Set battle repo in challenge handler for syncing progress
 	challengeHandler.SetBattleRepo(battleRepo)
@@ -73,6 +79,23 @@ func main() {
 	protected := api.Group("", middleware.AuthRequired())
 	protected.Get("/auth/me", authHandler.GetMe)
 	protected.Post("/getImageContents", imageHandler.GetImageContents)
+
+	// WebSocket route (protected) - outside of /api group to handle auth via query param
+	app.Use("/ws", func(c *fiber.Ctx) error {
+		if websocket.IsWebSocketUpgrade(c) {
+			// Extract token from query parameter for WebSocket
+			token := c.Query("token")
+			if token != "" {
+				// Set it as Authorization header for middleware
+				c.Request().Header.Set("Authorization", "Bearer "+token)
+			}
+			return c.Next()
+		}
+		return fiber.ErrUpgradeRequired
+	})
+	app.Get("/ws", middleware.AuthRequired(), websocket.New(func(c *websocket.Conn) {
+		wsHandler.HandleWebSocket(c)
+	}))
 
 	// Challenge routes
 	challenges := protected.Group("/challenges")

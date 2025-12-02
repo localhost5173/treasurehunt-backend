@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"log"
 	"math/rand"
 	"time"
 	"treasureHunt/models"
@@ -16,6 +17,7 @@ type BattleHandler struct {
 	friendRepo       *repository.FriendRepository
 	notificationRepo *repository.NotificationRepository
 	challengeRepo    *repository.ChallengeRepository
+	wsHub            *Hub
 }
 
 func NewBattleHandler(
@@ -23,12 +25,14 @@ func NewBattleHandler(
 	friendRepo *repository.FriendRepository,
 	notificationRepo *repository.NotificationRepository,
 	challengeRepo *repository.ChallengeRepository,
+	wsHub *Hub,
 ) *BattleHandler {
 	return &BattleHandler{
 		battleRepo:       battleRepo,
 		friendRepo:       friendRepo,
 		notificationRepo: notificationRepo,
 		challengeRepo:    challengeRepo,
+		wsHub:            wsHub,
 	}
 }
 
@@ -102,13 +106,28 @@ func (h *BattleHandler) CreateBattle(c *fiber.Ctx) error {
 
 	// Create notification for opponent
 	message := "challenged you to a battle!"
-	h.notificationRepo.CreateNotification(
+	notification, err := h.notificationRepo.CreateNotification(
 		opponentID,
 		challengerID,
 		battle.ID,
 		models.NotificationBattleInvite,
 		message,
 	)
+	if err != nil {
+		log.Printf("Failed to create notification: %v", err)
+	}
+
+	// Send real-time notification via WebSocket
+	if notification != nil && h.wsHub != nil {
+		if err := h.wsHub.SendToUser(opponentID, notification); err != nil {
+			log.Printf("Failed to send WebSocket notification: %v", err)
+		}
+
+		// Send battle list refresh message to opponent
+		h.wsHub.SendToUserWithType(opponentID, "battle_list_update", map[string]interface{}{
+			"action": "refresh_battles",
+		})
+	}
 
 	// Return battle with user details
 	battleWithUsers, err := h.battleRepo.GetBattleWithUsers(battle.ID)
@@ -198,13 +217,37 @@ func (h *BattleHandler) AcceptBattle(c *fiber.Ctx) error {
 	battle, _ := h.battleRepo.GetBattle(battleObjID)
 	if battle != nil {
 		message := "accepted your battle challenge!"
-		h.notificationRepo.CreateNotification(
+		notification, err := h.notificationRepo.CreateNotification(
 			battle.ChallengerID,
 			objID,
 			battleObjID,
 			models.NotificationBattleAccept,
 			message,
 		)
+		if err != nil {
+			log.Printf("Failed to create notification: %v", err)
+		}
+
+		// Send real-time notification via WebSocket
+		if notification != nil && h.wsHub != nil {
+			if err := h.wsHub.SendToUser(battle.ChallengerID, notification); err != nil {
+				log.Printf("Failed to send WebSocket notification: %v", err)
+			}
+
+			// Send battle_started event to the challenger so they get redirected to the challenge
+			h.wsHub.SendToUserWithType(battle.ChallengerID, "battle_started", map[string]interface{}{
+				"battleId": battleObjID.Hex(),
+				"action":   "start_battle",
+			})
+
+			// Send battle list refresh message to both users
+			h.wsHub.SendToUserWithType(battle.ChallengerID, "battle_list_update", map[string]interface{}{
+				"action": "refresh_battles",
+			})
+			h.wsHub.SendToUserWithType(objID, "battle_list_update", map[string]interface{}{
+				"action": "refresh_battles",
+			})
+		}
 	}
 
 	return c.JSON(fiber.Map{"message": "Battle accepted"})
@@ -227,6 +270,15 @@ func (h *BattleHandler) DeclineBattle(c *fiber.Ctx) error {
 	err = h.battleRepo.DeclineBattle(battleObjID, objID)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Get battle details to notify the challenger about decline
+	battle, _ := h.battleRepo.GetBattle(battleObjID)
+	if battle != nil && h.wsHub != nil {
+		// Send battle list refresh to challenger so declined battle updates
+		h.wsHub.SendToUserWithType(battle.ChallengerID, "battle_list_update", map[string]interface{}{
+			"action": "refresh_battles",
+		})
 	}
 
 	return c.JSON(fiber.Map{"message": "Battle declined"})
