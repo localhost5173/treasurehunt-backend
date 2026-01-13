@@ -46,7 +46,8 @@ A Fiber-based REST API with authentication (email/password and Google OAuth) and
    - Update the `.env` file with your credentials
    - Required: `JWT_SECRET`, `OPENAI_API_KEY`
    - Optional: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
-   - Optional: `EMAIL_WHITELIST` - Comma-separated list of allowed emails for signup (leave empty to allow all)
+   - Optional: `ENABLE_EMAIL_WHITELIST` - Set to `true` to restrict signups to whitelisted emails, `false` (default) to allow anyone
+   - Optional: `EMAIL_WHITELIST` - Comma-separated list of allowed emails (only used if `ENABLE_EMAIL_WHITELIST=true`)
      - Example: `EMAIL_WHITELIST=user1@example.com,user2@example.com`
 
 3. **Start MongoDB**:

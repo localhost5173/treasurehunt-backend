@@ -9,18 +9,19 @@ import (
 )
 
 type Config struct {
-	MongoURI           string
-	MongoUsername      string
-	MongoPassword      string
-	DatabaseName       string
-	ServerPort         string
-	JWTSecret          string
-	GoogleClientID     string
-	GoogleClientSecret string
-	GoogleRedirectURL  string
-	FrontendURL        string
-	OpenAIAPIKey       string
-	EmailWhitelist     []string
+	MongoURI              string
+	MongoUsername         string
+	MongoPassword         string
+	DatabaseName          string
+	ServerPort            string
+	JWTSecret             string
+	GoogleClientID        string
+	GoogleClientSecret    string
+	GoogleRedirectURL     string
+	FrontendURL           string
+	OpenAIAPIKey          string
+	EnableEmailWhitelist  bool
+	EmailWhitelist        []string
 }
 
 var AppConfig *Config
@@ -32,18 +33,19 @@ func LoadConfig() {
 	}
 
 	AppConfig = &Config{
-		MongoURI:           getEnv("MONGO_URI", "mongodb://admin:password123@localhost:27017/treasureHunt_auth?authSource=admin"),
-		MongoUsername:      getEnv("MONGO_USERNAME", "admin"),
-		MongoPassword:      getEnv("MONGO_PASSWORD", "password123"),
-		DatabaseName:       getEnv("DATABASE_NAME", "treasureHunt_auth"),
-		ServerPort:         getEnv("SERVER_PORT", "8080"),
-		JWTSecret:          getEnv("JWT_SECRET", "your-secret-key"),
-		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
-		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
-		GoogleRedirectURL:  getEnv("GOOGLE_REDIRECT_URL", "http://localhost:8080/api/auth/google/callback"),
-		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:5173"),
-		OpenAIAPIKey:       getEnv("OPENAI_API_KEY", ""),
-		EmailWhitelist:     getEmailWhitelist(),
+		MongoURI:             getEnv("MONGO_URI", "mongodb://admin:password123@localhost:27017/treasureHunt_auth?authSource=admin"),
+		MongoUsername:        getEnv("MONGO_USERNAME", "admin"),
+		MongoPassword:        getEnv("MONGO_PASSWORD", "password123"),
+		DatabaseName:         getEnv("DATABASE_NAME", "treasureHunt_auth"),
+		ServerPort:           getEnv("SERVER_PORT", "8080"),
+		JWTSecret:            getEnv("JWT_SECRET", "your-secret-key"),
+		GoogleClientID:       getEnv("GOOGLE_CLIENT_ID", ""),
+		GoogleClientSecret:   getEnv("GOOGLE_CLIENT_SECRET", ""),
+		GoogleRedirectURL:    getEnv("GOOGLE_REDIRECT_URL", "http://localhost:8080/api/auth/google/callback"),
+		FrontendURL:          getEnv("FRONTEND_URL", "http://localhost:5173"),
+		OpenAIAPIKey:         getEnv("OPENAI_API_KEY", ""),
+		EnableEmailWhitelist: getEnvBool("ENABLE_EMAIL_WHITELIST", false),
+		EmailWhitelist:       getEmailWhitelist(),
 	}
 }
 
@@ -52,6 +54,16 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	// Accept true, 1, yes, enabled as true values
+	lowerValue := strings.ToLower(strings.TrimSpace(value))
+	return lowerValue == "true" || lowerValue == "1" || lowerValue == "yes" || lowerValue == "enabled"
 }
 
 func getEmailWhitelist() []string {
@@ -73,9 +85,14 @@ func getEmailWhitelist() []string {
 }
 
 func IsEmailAllowed(email string) bool {
-	// If whitelist is empty, all emails are allowed
-	if len(AppConfig.EmailWhitelist) == 0 {
+	// If email whitelist is disabled, allow all emails
+	if !AppConfig.EnableEmailWhitelist {
 		return true
+	}
+
+	// If whitelist is enabled but empty, deny all emails (require explicit whitelist)
+	if len(AppConfig.EmailWhitelist) == 0 {
+		return false
 	}
 
 	// Check if email is in whitelist (case-insensitive)
