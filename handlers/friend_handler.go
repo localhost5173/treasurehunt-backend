@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"treasureHunt/models"
 	"treasureHunt/repository"
 
@@ -12,12 +13,14 @@ import (
 type FriendHandler struct {
 	friendRepo       *repository.FriendRepository
 	notificationRepo *repository.NotificationRepository
+	wsHub            *Hub
 }
 
-func NewFriendHandler(friendRepo *repository.FriendRepository, notificationRepo *repository.NotificationRepository) *FriendHandler {
+func NewFriendHandler(friendRepo *repository.FriendRepository, notificationRepo *repository.NotificationRepository, wsHub *Hub) *FriendHandler {
 	return &FriendHandler{
 		friendRepo:       friendRepo,
 		notificationRepo: notificationRepo,
+		wsHub:            wsHub,
 	}
 }
 
@@ -53,13 +56,29 @@ func (h *FriendHandler) SendFriendRequest(c *fiber.Ctx) error {
 
 	// Create notification
 	message := "sent you a friend request"
-	h.notificationRepo.CreateNotification(
+	notification, err := h.notificationRepo.CreateNotification(
 		toUser.ID,
 		fromUserID,
 		friendRequest.ID,
 		models.NotificationFriendRequest,
 		message,
 	)
+	if err != nil {
+		log.Printf("Failed to create notification: %v", err)
+	}
+
+	// Send real-time notification via WebSocket
+	if notification != nil && h.wsHub != nil {
+		if err := h.wsHub.SendToUser(toUser.ID, notification); err != nil {
+			log.Printf("Failed to send WebSocket notification: %v", err)
+		}
+
+		// Also send friend list update so the receiver sees the new friend request instantly
+		refreshMessage := map[string]interface{}{
+			"action": "refresh_friends",
+		}
+		h.wsHub.SendToUserWithType(toUser.ID, "friend_list_update", refreshMessage)
+	}
 
 	return c.Status(fiber.StatusCreated).JSON(friendRequest)
 }
@@ -98,15 +117,59 @@ func (h *FriendHandler) AcceptFriendRequest(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request ID"})
 	}
 
+	// Get the friend request before accepting to find the fromUser
+	requests, err := h.friendRepo.GetFriendRequests(objID)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Failed to fetch friend request"})
+	}
+
+	var fromUserID primitive.ObjectID
+	for _, req := range requests {
+		if req.ID == reqObjID {
+			fromUserID = req.FromUserID
+			break
+		}
+	}
+
+	if fromUserID.IsZero() {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Friend request not found"})
+	}
+
 	err = h.friendRepo.AcceptFriendRequest(reqObjID, objID)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Get the friend request to find the from user
 	// Create notification for the sender that their request was accepted
-	// This would require fetching the request first to get fromUserID
-	// For now, simplified
+	message := "accepted your friend request"
+	notification, err := h.notificationRepo.CreateNotification(
+		fromUserID,
+		objID,
+		reqObjID,
+		models.NotificationFriendAccept,
+		message,
+	)
+	if err != nil {
+		log.Printf("Failed to create notification: %v", err)
+	}
+
+	// Send real-time notification via WebSocket
+	if notification != nil && h.wsHub != nil {
+		if err := h.wsHub.SendToUser(fromUserID, notification); err != nil {
+			log.Printf("Failed to send WebSocket notification: %v", err)
+		}
+	}
+
+	// Send friend list refresh message to both users
+	if h.wsHub != nil {
+		refreshMessage := map[string]interface{}{
+			"action": "refresh_friends",
+		}
+
+		// Notify both users to refresh their friend lists using the correct message type
+		h.wsHub.SendToUserWithType(objID, "friend_list_update", refreshMessage)
+		h.wsHub.SendToUserWithType(fromUserID, "friend_list_update", refreshMessage)
+	}
 
 	return c.JSON(fiber.Map{"message": "Friend request accepted"})
 }
