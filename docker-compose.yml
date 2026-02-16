@@ -1,4 +1,3 @@
-
 services:
   treasurehunt:
     build: 
@@ -8,78 +7,34 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
-    # Traefik labels for Coolify CORS configuration
     labels:
-      # Enable Traefik for this service
       - "traefik.enable=true"
-      
-      # NOTE: ALL Traefik service/router labels removed - Coolify manages everything
-      # Coolify auto-generates service names like:
-      #   http-0-{uuid}-treasurehunt
-      #   https-0-{uuid}-treasurehunt
-      # Any labels referencing "treasurehunt" service/router will conflict!
-      
-      # We only define MIDDLEWARES (these don't conflict)
-      
-      # CORS middleware configuration - Allow ALL origins (backend validates per-project)
-      - "traefik.http.middlewares.treasurehunt-cors.headers.accesscontrolalloworiginlistregex=.*"
-      - "traefik.http.middlewares.treasurehunt-cors.headers.accesscontrolallowmethods=GET,POST,PUT,PATCH,DELETE,OPTIONS"
-      - "traefik.http.middlewares.treasurehunt-cors.headers.accesscontrolallowcredentials=true"
-      - "traefik.http.middlewares.treasurehunt-cors.headers.accesscontrolallowheaders=Origin,Content-Type,Accept,Authorization"
-      - "traefik.http.middlewares.treasurehunt-cors.headers.accesscontrolexposeheaders=Content-Type,Authorization,Retry-After,X-RateLimit-Limit-Minute,X-RateLimit-Remaining-Minute"
-      - "traefik.http.middlewares.treasurehunt-cors.headers.accesscontrolmaxage=86400"
-      
-      # Keepalive middleware (prevents connection staleness)
-      - "traefik.http.middlewares.treasurehunt-keepalive.headers.customresponseheaders.Connection=keep-alive"
-      - "traefik.http.middlewares.treasurehunt-keepalive.headers.customresponseheaders.Keep-Alive=timeout=60, max=100"
-      
-      # Retry middleware (auto-retry failed requests)
-      - "traefik.http.middlewares.treasurehunt-retry.retry.attempts=3"
-      - "traefik.http.middlewares.treasurehunt-retry.retry.initialinterval=100ms"
-      
-      # REMOVED: Cache headers - was causing stale ticket data in production
-      # API endpoints should never be cached, especially dynamic data like tickets/messages
-      # - "traefik.http.middlewares.treasurehunt-cache.headers.customresponseheaders.Cache-Control=max-age=31536000, public, immutable"
-      
-      # HSTS header for security score
-      - "traefik.http.middlewares.treasurehunt-hsts.headers.stsSeconds=31536000"
-      - "traefik.http.middlewares.treasurehunt-hsts.headers.stsIncludeSubdomains=true"
-      - "traefik.http.middlewares.treasurehunt-hsts.headers.stsPreload=true"
-      
-      # Content-Type charset header for SEO
-      - "traefik.http.middlewares.treasurehunt-charset.headers.customresponseheaders.Content-Type=text/html; charset=utf-8"
-      
-      # NOTE: DO NOT apply middlewares to "treasurehunt" router - that conflicts with Coolify!
-      # Coolify will apply these middlewares to its auto-generated routers
-      # If you need to apply them, do it via Coolify UI or target Coolify's router names
+      - "traefik.http.routers.treasurehunt-rtr.rule=Host(`treasurehunt.omnicade.eu`)"
+      - "traefik.http.routers.treasurehunt-rtr.entrypoints=websecure"
+      - "traefik.http.routers.treasurehunt-rtr.tls=true"
+      - "traefik.http.routers.treasurehunt-rtr.tls.certresolver=letsencrypt"
+      - "traefik.http.services.treasurehunt-svc.loadbalancer.server.port=${SERVER_PORT:-8080}"
+      - "traefik.docker.network=dokploy-network"
     environment:
-      # MongoDB connection with authentication
-      # SECURITY: MongoDB credentials should be set via .env file
       - MONGO_URI=mongodb://${MONGO_USERNAME:-admin}:${MONGO_PASSWORD:-password123}@mongodb:27017/${DATABASE_NAME:-treasureHunt_auth}?authSource=admin
       - MONGO_USERNAME=${MONGO_USERNAME:-admin}
       - MONGO_PASSWORD=${MONGO_PASSWORD:-password123}
       - MONGO_INITDB_DATABASE=${MONGO_INITDB_DATABASE:-treasureHunt_auth}
-      # Server configuration
       - SERVER_PORT=${SERVER_PORT:-8080}
       - DATABASE_NAME=${DATABASE_NAME:-treasureHunt_auth}
-      # JWT Secret (change this in production!)
       - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production}
-      # Google OAuth (optional - set in .env file)
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - GOOGLE_REDIRECT_URL=${GOOGLE_REDIRECT_URL:-http://localhost:8080/api/auth/google/callback}
-      # Frontend URL for CORS
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
-      # OpenAI for embeddings / LLM integration
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
     env_file:
       - .env
-    ports:
-      - "${SERVER_PORT:-8080}:${SERVER_PORT:-8080}"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
       - treasurehunt-network
+      - dokploy-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:${SERVER_PORT:-8080}/health"]
@@ -87,20 +42,15 @@ services:
       timeout: 10s
       retries: 5
       start_period: 120s
-    # Docker will automatically restart if health check fails consistently
 
   mongodb:
     image: mongo:7.0
     container_name: treasurehunt-mongodb
     command: mongod --quiet --logpath /dev/null
-    # SECURITY: No port mapping - only accessible within Docker network
-    # ports:
-    #   - "27017:27017"
     volumes:
-      - treasurehunt_mongodb_data_v0:/data/db  # Changed from treasurehunt_mongodb_data
-      - treasurehunt_mongodb_config_v0:/data/configdb  # Changed from treasurehunt_mongodb_config
+      - treasurehunt_mongodb_data_v0:/data/db
+      - treasurehunt_mongodb_config_v0:/data/configdb
     environment:
-      # SECURITY: MongoDB credentials should be set via .env file
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_USERNAME:-admin}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD:-password123}
       - MONGO_INITDB_DATABASE=${MONGO_INITDB_DATABASE:-treasureHunt_auth}
@@ -115,11 +65,13 @@ services:
       start_period: 30s
 
 volumes:
-  treasurehunt_mongodb_data_v0:  # New volume name
+  treasurehunt_mongodb_data_v0:
     driver: local
-  treasurehunt_mongodb_config_v0:  # New volume name
+  treasurehunt_mongodb_config_v0:
     driver: local
 
 networks:
   treasurehunt-network:
     driver: bridge
+  dokploy-network:
+    external: true
